@@ -1,80 +1,143 @@
-# 🚀 Projet 5: Maintenez et documentez un système de stockage des données sécurisé et performant
+# 🚀 Projet 5: Pipeline ETL pour Données Médicales vers MongoDB
 
-Ce projet a pour objectif de migrer un jeu de données de patients, initialement au format CSV, vers une base de données NoSQL MongoDB. La solution est entièrement conteneurisée avec Docker pour garantir sa portabilité et sa reproductibilité.
+Ce projet met en place un pipeline ETL (Extract, Transform, Load) complet pour migrer un jeu de données de patients depuis un fichier CSV vers une base de données NoSQL MongoDB. La solution est entièrement conteneurisée avec Docker et Docker Compose pour garantir une portabilité et une reproductibilité parfaites.
 
 ## 🎯 Contexte de la Mission
 
-La mission, confiée par l'entreprise DataSoluTech, vise à fournir à un client une solution de stockage de données plus moderne et scalable horizontalement pour faire face à des problèmes de performance avec leurs systèmes actuels.
+La mission, confiée par l'entreprise DataSoluTech, vise à fournir à un client une solution de stockage de données moderne, performante et scalable pour gérer l'historique médical de ses patients. Le pipeline développé nettoie, structure et charge les données, tout en mettant en place un système d'authentification sécurisé.
 
 ---
 
-## 🔑 Concepts Clés de MongoDB
+## 🏗️ Architecture de la Solution
 
-Pour comprendre la structure de notre base de données cible, il est essentiel de maîtriser trois concepts fondamentaux de MongoDB. L'analogie la plus simple est celle d'une armoire de bureau.
+La solution est orchestrée par Docker Compose et se compose de trois services principaux :
 
-| Concept Relationnel (SQL) | Concept MongoDB (NoSQL) | Analogie |
-| :--- | :--- | :--- |
-| Base de Données | **Database** | 🗄️ L'armoire entière |
-| Table | **Collection** | 🗂️ Un tiroir de l'armoire |
-| Ligne / Enregistrement | **Document** | 📄 Un dossier dans un tiroir |
+- **`etl-app`**: Un conteneur Python qui exécute notre script ETL. Il lit le CSV, le transforme, et charge les données dans MongoDB.
+- **`mongo`**: Le service de base de données MongoDB, configuré avec un utilisateur administrateur et un utilisateur "analyste" en lecture seule.
+- **`mongo-express`**: Une interface web d'administration pour visualiser et interroger facilement la base de données.
 
-### 1. Database (Base de Données)
-- **Définition :** C'est le conteneur principal qui regroupe toutes les collections liées à notre projet.
-- **Notre projet :** Nous utilisons une base de données unique nommée `medical_db`.
+Les services communiquent entre eux sur un réseau Docker privé pour plus de sécurité.
 
-### 2. Collection
-- **Définition :** C'est un regroupement de documents, similaire à une table en SQL mais avec un schéma flexible. Cela signifie que les documents d'une même collection n'ont pas besoin d'avoir exactement la même structure.
-- **Notre projet :** Nous avons une collection principale nommée `patients` qui contiendra tous les enregistrements de nos patients.
+---
 
-### 3. Document
-- **Définition :** C'est l'unité de stockage de base dans MongoDB. Il s'agit d'un enregistrement au format BSON (un JSON binaire optimisé), composé de paires clé-valeur.
-- **Notre projet :** Chaque ligne de notre fichier CSV d'origine est transformée en un document. Voici un exemple :
+## 💾 Modélisation des Données
 
+Suite à une analyse approfondie du jeu de données, nous avons découvert que chaque ligne du CSV représentait une **hospitalisation** et non un patient unique. Le pipeline a donc été conçu pour supporter deux stratégies de modélisation NoSQL, configurables via la variable `DATA_MODELLING_MODE` dans le fichier `.env`.
+
+### 1. Modèle `embedding` (par défaut)
+Ce modèle est optimisé pour les lectures. Chaque document représente un patient unique et contient un tableau imbriqué de toutes ses hospitalisations.
+
+**Exemple de document `patients`:**
 ```json
 {
-  "_id": "62e8c5d9f7e4a9b8d8f1e2a3",
-  "name": "Bobby Jackson",
-  "age": 30,
+  "_id": "hash_du_patient",
+  "name": {
+    "full": "Mr. Brandon Johnson Jr.",
+    "title": "Mr.", 
+    "first": "Brandon",
+    "last": "Johnson",
+    "suffix": "Jr.", 
+    // Note: Les champs 'title' et 'suffix' sont optionnels.
+  },
   "gender": "Male",
-  "blood_type": "B-",
-  "medical_condition": "Cancer",
-  "date_of_admission": "2024-01-31T00:00:00.000Z",
-  "billing_amount": 18856.28,
-  "billing_amount_imputed": false
+  "blood_type": "B+",
+  "hospitalizations": [
+    {
+      "test_results": "Normal",
+      "hospital": "Sons and Miller",
+      "admission_type": "Urgent",
+      "date_of_admission": "2023-11-12T00:00:00Z",
+      "discharge_date": "2023-11-13T00:00:00Z",
+      "insurance_provider": "Blue Cross",
+      "admission_age": 79,
+      "medication": "Paracetamol",
+      "billing_amount": 6612.15,      
+      "medical_condition": "Cancer",
+      "doctor": "Amber Payne",
+      "room_number": 328
+    },
+    {
+      "admission_age": 83,
+      "date_of_admission": "2023-11-12T00:00:00Z",
+      "doctor": "Amber Payne",
+      // ... autres champs du séjour (chambre, médication, etc.)
+    }
+  ]
 }
 ```
+
+### 2. Modèle `reference`
+Ce modèle normalise les données dans deux collections distinctes, ce qui est idéal pour les environnements avec de nombreuses mises à jour.
+- **`patients`**: Contient les informations uniques de chaque patient.
+- **`hospitalizations`**: Contient les détails de chaque séjour, avec un champ `patient_id` faisant référence à la collection `patients`.
+
 ---
 
-# 🚀 Installation et Lancement
+## 🚀 Installation et Lancement
 
-# Comment utiliser :
-## 1. Préparer les données
+Suivez ces étapes pour lancer le projet complet.
 
-## 2. Lancer le pipeline complet
+### 1. Prérequis
+- [Docker](https://www.docker.com/products/docker-desktop/) et Docker Compose installés.
+- Git installé.
 
-````sh
-# Lancer tous les services
-docker-compose up --build
+### 2. Cloner le Dépôt
+```bash
+git clone https://github.com/abguven/P5-medical-data-etl-pipeline.git
+cd P5-medical-data-etl-pipeline
+```
 
-# En arrière-plan
+### 3. Configurer les Variables d'Environnement
+Le projet utilise des variables d'environnement pour gérer les secrets et la configuration.
+
+Copiez le fichier d'exemple et personnalisez-le si nécessaire (notamment les mots de passe).
+```bash
+cp .env.example .env
+```
+Ouvrez le fichier `.env` et modifiez les valeurs `MONGO_PASSWORD` et `WEB_PASSWORD`. Vous pouvez aussi changer le `DATA_MODELLING_MODE` pour tester les deux stratégies.
+
+### 4. Lancer le Pipeline Complet
+Cette commande va construire l'image Python, démarrer la base de données, exécuter le script ETL, puis lancer l'interface web.
+
+```bash
+# Lancer tous les services en arrière-plan
 docker-compose up -d --build
-````
+```
+Le pipeline s'exécute automatiquement au démarrage. La première exécution peut prendre un peu de temps pour télécharger les images et installer les dépendances.
 
-## 3. Monitoring et debug
-````sh
-# Voir les logs de votre ETL
+---
+
+## 🛠️ Utilisation et Monitoring
+
+### Accéder aux Données
+- **Mongo Express (Interface Web)**: Ouvrez votre navigateur et allez sur [http://localhost:8081](http://localhost:8081).
+  - Utilisez les identifiants `WEB_USERNAME` et `WEB_PASSWORD` définis dans votre fichier `.env` pour vous connecter.
+
+### Monitoring et Debug
+```bash
+# Voir les logs en temps réel de tous les services
+docker-compose logs -f
+
+# Voir les logs spécifiques du script ETL
 docker-compose logs etl-app
 
-# Accéder à MongoDB via l'interface web
-# http://localhost:8081 (admin/admin123)
-
-# Entrer dans le conteneur pour debug
+# Entrer dans le conteneur ETL pour un debug avancé
 docker-compose exec etl-app bash
-````
+```
 
-
-
-
+### Arrêter les Services
+Pour arrêter tous les conteneurs :
+```bash
+docker-compose down
+```
+Pour un nettoyage complet (incluant la suppression du volume de données MongoDB) :
+```bash
+docker-compose down -v
+```
 
 ---
-# 🛠️ Structure du Projet
+
+## 🧪 Scripts d'Exploration
+
+Le dossier `notebooks_and_tests/` contient des scripts utilisés durant la phase de développement pour valider certains points de la mission.
+- **`crud_examples.py`**: Démontre les opérations CRUD de base sur une instance MongoDB locale.
