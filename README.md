@@ -28,7 +28,7 @@ Suite à une analyse approfondie du jeu de données, nous avons découvert que c
 Ce modèle est optimisé pour les lectures. Chaque document représente un patient unique et contient un tableau imbriqué de toutes ses hospitalisations.
 
 **Exemple de document `patients`:**
-```json
+```javascript
 {
   "_id": "hash_du_patient",
   "name": {
