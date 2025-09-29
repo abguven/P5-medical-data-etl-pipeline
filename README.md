@@ -27,6 +27,22 @@ La solution est orchestrée par `docker-compose.yml` et s'articule autour de tro
 -   **`mongo`**: Le service de base de données MongoDB. Il est configuré pour persister les données via un volume nommé (`mongo_data`) et pour centraliser ses logs. Au premier démarrage, il exécute un script d'initialisation pour créer les utilisateurs.
 - **`mongo-express`**: Une interface web d'administration pour visualiser et interroger facilement la base de données. Par défaut, elle est configurée pour se connecter avec l'utilisateur **administrateur** afin de faciliter le développement et le debug. Il est cependant possible de la reconfigurer pour utiliser le compte **analyste** en lecture seule (voir la section *Utilisation Avancée*).
 
+## 🔐 Sécurité et Authentification
+
+Le pipeline met en place un système d'authentification robuste pour la base de données, conformément aux meilleures pratiques. La configuration est gérée par le script `mongo-init/init-mongo.js`, qui s'exécute au premier démarrage du service MongoDB.
+
+### Rôles Utilisateurs
+Deux utilisateurs distincts sont créés automatiquement, chacun avec des permissions spécifiques pour garantir le principe du moindre privilège :
+-   **Un utilisateur ETL (défini par les variables `MONGO_ROOT_*` dans `.env`)** : Cet utilisateur possède les droits de lecture et d'écriture (`readWrite`) sur la base `medical_db`. Son rôle est exclusivement de permettre au pipeline ETL de nettoyer et de charger les données.
+-   **Un utilisateur Analyste (défini par les variables `MONGO_ANALYST_*` dans `.env`)** : Cet utilisateur possède uniquement les droits de lecture (`read`). Il est destiné aux applications de reporting ou aux analystes qui doivent consulter les données sans jamais pouvoir les modifier.
+
+### Hachage des Mots de Passe
+La sécurité des mots de passe est entièrement déléguée à MongoDB. Notre script fournit les mots de passe lors de la création des utilisateurs, et MongoDB se charge automatiquement de :
+1.  **Hacher** le mot de passe en utilisant un algorithme sécurisé (SCRAM-SHA-256).
+2.  **Saler** le hash pour le rendre unique et résistant aux attaques par tables arc-en-ciel.
+3.  Stocker **uniquement l'empreinte sécurisée**, jamais le mot de passe en clair.
+
+Nous n'implémentons pas le hachage nous-mêmes, mais nous utilisons la fonctionnalité de sécurité native et éprouvée de MongoDB pour garantir la protection des identifiants.
 
 ## 💾 Modélisation des Données
 
@@ -127,7 +143,7 @@ Pour un nettoyage complet (incluant la suppression du volume de données MongoDB
 docker-compose down -v
 ```
 
-### 🔐 Utilisation Avancée : Tester la Connexion Analyste
+### ⚙️ Utilisation Avancée : Tester la Connexion Analyste
 
 Par défaut, `mongo-express` se connecte avec les droits d'administrateur pour faciliter le développement. Pour tester la vue d'un utilisateur en lecture seule, vous pouvez modifier le fichier `docker-compose.yml` :
 
