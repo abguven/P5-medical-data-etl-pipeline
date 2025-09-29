@@ -1,76 +1,51 @@
-# 🚀 Projet 5: Pipeline ETL pour Données Médicales vers MongoDB
+# Pipeline ETL pour Données Médicales vers MongoDB
+<img src="https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11"> <img src="https://img.shields.io/badge/MongoDB-7.0-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB 7.0"> <img src="https://img.shields.io/badge/Docker-24.0-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"> <img src="https://img.shields.io/badge/Mongo_Express-1.0.0-86d77e.svg?style=for-the-badge" alt="Mongo Express">
 
-Ce projet met en place un pipeline ETL (Extract, Transform, Load) complet pour migrer un jeu de données de patients depuis un fichier CSV vers une base de données NoSQL MongoDB. La solution est entièrement conteneurisée avec Docker et Docker Compose pour garantir une portabilité et une reproductibilité parfaites.
+**Réf:** OC-DE-P5
 
-## 🎯 Contexte de la Mission
+Ce projet met en place un pipeline ETL (Extract, Transform, Load) complet et de calibre professionnel pour migrer un jeu de données de patients depuis un fichier CSV vers une base de données NoSQL MongoDB. La solution est entièrement conteneurisée avec Docker, configurable, et conçue pour être robuste et maintenable.
 
-La mission, confiée par l'entreprise DataSoluTech, vise à fournir à un client une solution de stockage de données moderne, performante et scalable pour gérer l'historique médical de ses patients. Le pipeline développé nettoie, structure et charge les données, tout en mettant en place un système d'authentification sécurisé.
+Ce document sert de guide complet pour comprendre l'architecture, le fonctionnement, et les décisions de conception du projet.
+
+## 🎯 Contexte et Objectifs
+
+La mission initiale était de migrer un dataset de données médicales pour un client de DataSoluTech, afin de lui fournir une solution de stockage plus moderne, performante et scalable. Au-delà de la simple migration, les objectifs suivants ont été atteints :
+
+-   **Fiabilité des Données :** Assurer la propreté, la déduplication et la structuration logique des données.
+-   **Reproductibilité :** Créer un environnement 100% reproductible grâce à Docker.
+-   **Flexibilité :** Permettre le choix entre deux stratégies de modélisation NoSQL (`embedding` vs `reference`).
+-   **Sécurité :** Mettre en place un système d'authentification avec des rôles utilisateurs distincts.
+-   **Maintenabilité :** Produire un code propre, orienté objet, et configurable via des variables d'environnement.
 
 ---
 
 ## 🏗️ Architecture de la Solution
 
-La solution est orchestrée par Docker Compose et se compose de trois services principaux :
+La solution est orchestrée par `docker-compose.yml` et s'articule autour de trois services principaux communiquant via un réseau privé `etl-network`.
 
-- **`etl-app`**: Un conteneur Python qui exécute notre script ETL. Il lit le CSV, le transforme, et charge les données dans MongoDB.
-- **`mongo`**: Le service de base de données MongoDB, configuré avec un utilisateur administrateur et un utilisateur "analyste" en lecture seule.
-- **`mongo-express`**: Une interface web d'administration pour visualiser et interroger facilement la base de données.
+![Schéma de l'architecture ETL du projet](./assets/docker-compose-architecture.png)
 
-Les services communiquent entre eux sur un réseau Docker privé pour plus de sécurité.
+-   **`etl-app`**: Le cœur du pipeline. Un conteneur Python qui exécute le script `etl.py`. Il dépend du service `mongo` pour s'assurer que la base de données est prête avant de démarrer.
+-   **`mongo`**: Le service de base de données MongoDB. Il est configuré pour persister les données via un volume nommé (`mongo_data`) et pour centraliser ses logs. Au premier démarrage, il exécute un script d'initialisation pour créer les utilisateurs.
+- **`mongo-express`**: Une interface web d'administration pour visualiser et interroger facilement la base de données. Par défaut, elle est configurée pour se connecter avec l'utilisateur **administrateur** afin de faciliter le développement et le debug. Il est cependant possible de la reconfigurer pour utiliser le compte **analyste** en lecture seule (voir la section *Utilisation Avancée*).
 
 ---
 
 ## 💾 Modélisation des Données
 
-Suite à une analyse approfondie du jeu de données, nous avons découvert que chaque ligne du CSV représentait une **hospitalisation** et non un patient unique. Le pipeline a donc été conçu pour supporter deux stratégies de modélisation NoSQL, configurables via la variable `DATA_MODELLING_MODE` dans le fichier `.env`.
+L'analyse initiale a révélé que le dataset source représentait des **hospitalisations** et non des patients uniques. Pour répondre à cette réalité, le pipeline a été conçu pour supporter deux stratégies de modélisation NoSQL, sélectionnables via la variable `DATA_MODELLING_MODE` dans le fichier `.env`.
 
 ### 1. Modèle `embedding` (par défaut)
-Ce modèle est optimisé pour les lectures. Chaque document représente un patient unique et contient un tableau imbriqué de toutes ses hospitalisations.
 
-**Exemple de document `patients`:**
-```javascript
-{
-  "_id": "hash_du_patient",
-  "name": {
-    "full": "Mr. Brandon Johnson Jr.",
-    "title": "Mr.", 
-    "first": "Brandon",
-    "last": "Johnson",
-    "suffix": "Jr.", 
-    // Note: Les champs 'title' et 'suffix' sont optionnels.
-  },
-  "gender": "Male",
-  "blood_type": "B+",
-  "hospitalizations": [
-    {
-      "test_results": "Normal",
-      "hospital": "Sons and Miller",
-      "admission_type": "Urgent",
-      "date_of_admission": "2023-11-12T00:00:00Z",
-      "discharge_date": "2023-11-13T00:00:00Z",
-      "insurance_provider": "Blue Cross",
-      "admission_age": 79,
-      "medication": "Paracetamol",
-      "billing_amount": 6612.15,      
-      "medical_condition": "Cancer",
-      "doctor": "Amber Payne",
-      "room_number": 328
-    },
-    {
-      "admission_age": 83,
-      "date_of_admission": "2023-11-12T00:00:00Z",
-      "doctor": "Amber Payne",
-      // ... autres champs du séjour (chambre, médication, etc.)
-    }
-  ]
-}
-```
+Ce modèle est optimisé pour les cas d'usage où les lectures sont fréquentes (ex: afficher l'historique complet d'un patient). Chaque document de la collection `patients` représente un patient unique et contient un tableau imbriqué de toutes ses hospitalisations. Cette approche permet de récupérer toutes les informations d'un patient en une seule opération de lecture.
+
+![Schéma du modèle embedding](./assets/embedding_schema.png)
 
 ### 2. Modèle `reference`
-Ce modèle normalise les données dans deux collections distinctes, ce qui est idéal pour les environnements avec de nombreuses mises à jour.
-- **`patients`**: Contient les informations uniques de chaque patient.
-- **`hospitalizations`**: Contient les détails de chaque séjour, avec un champ `patient_id` faisant référence à la collection `patients`.
 
+Ce modèle normalise les données dans deux collections distinctes, ce qui est idéal pour les environnements avec de nombreuses mises à jour ou si les listes d'hospitalisations deviennent très grandes. La relation entre les deux collections est établie via un champ `patient_id` et peut être résolue à la lecture grâce à l'opération `$lookup`.
+
+![Schéma du modèle de référence](./assets/reference_schema.png)
 ---
 
 ## 🚀 Installation et Lancement
@@ -79,7 +54,7 @@ Suivez ces étapes pour lancer le projet complet.
 
 ### 1. Prérequis
 - [Docker](https://www.docker.com/products/docker-desktop/) et Docker Compose installés.
-- Git installé.
+- [Git](https://git-scm.com/downloads) installé.
 
 ### 2. Cloner le Dépôt
 ```bash
@@ -99,9 +74,14 @@ Ouvrez le fichier `.env` et modifiez les valeurs `MONGO_PASSWORD` et `WEB_PASSWO
 ### 4. Lancer le Pipeline Complet
 Cette commande va construire l'image Python, démarrer la base de données, exécuter le script ETL, puis lancer l'interface web.
 
+🏷️ Vous avez deux options pour lancer les services :
+
 ```bash
-# Lancer tous les services en arrière-plan
+# Option 1: Lancer tous les services en arrière-plan (detached mode)
 docker-compose up -d --build
+
+# Option 2: Lancer tous les services au premier plan (les logs s'affichent directement dans la console)
+docker-compose up --build
 ```
 Le pipeline s'exécute automatiquement au démarrage. La première exécution peut prendre un peu de temps pour télécharger les images et installer les dépendances.
 
@@ -115,8 +95,11 @@ Le pipeline s'exécute automatiquement au démarrage. La première exécution pe
 
 ### Monitoring et Debug
 ```bash
-# Voir les logs en temps réel de tous les services
+# Voir les logs en temps réel (-f) de tous les services
 docker-compose logs -f
+
+# Voir les logs en temps réel (-f) d'un service spécifique (ex: mongo-express)
+docker-compose logs -f mongo-express
 
 # Voir les logs spécifiques du script ETL
 docker-compose logs etl-app
@@ -135,9 +118,16 @@ Pour un nettoyage complet (incluant la suppression du volume de données MongoDB
 docker-compose down -v
 ```
 
----
+### 🔐 Utilisation Avancée : Tester la Connexion Analyste
 
-## 🧪 Scripts d'Exploration
+Par défaut, `mongo-express` se connecte avec les droits d'administrateur pour faciliter le développement. Pour tester la vue d'un utilisateur en lecture seule, vous pouvez modifier le fichier `docker-compose.yml` :
 
-Le dossier `notebooks_and_tests/` contient des scripts utilisés durant la phase de développement pour valider certains points de la mission.
-- **`crud_examples.py`**: Démontre les opérations CRUD de base sur une instance MongoDB locale.
+1.  Ouvrez le fichier `docker-compose.yml`.
+2.  Naviguez jusqu'à la section `environment` du service `mongo-express`.
+3.  **Commentez** les lignes de la `CONNEXION ADMIN`.
+4.  **Décommentez** les lignes de la `CONNEXION ANALYSTE`.
+5.  Relancez les services pour appliquer les changements :
+    ```bash
+    docker-compose up -d --build
+    ```
+L'interface web n'aura maintenant que des droits de lecture sur la base `medical_db`.

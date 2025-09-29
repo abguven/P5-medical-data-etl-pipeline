@@ -3,3 +3,4 @@ pymongo>=4.0.0
 numpy>=1.21.0
 python-dotenv
 pytest
+# pip freeze > requierements.txt

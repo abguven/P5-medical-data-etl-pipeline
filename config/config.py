@@ -36,8 +36,8 @@ SOURCE_FILE_PATH = DATA_DIR / "healthcare_dataset.csv"
 DATA_MODELLING_MODE = "embedding" # 'embedding' or 'reference'
 
 # Mongo credentials
-MONGO_USER = os.getenv("MONGO_USER", "root")
-MONGO_PASSWORD = os.getenv("MONGO_PASSWORD", "password")
+MONGO_USER = os.getenv("MONGO_ROOT_USER", "root")
+MONGO_PASSWORD = os.getenv("MONGO_ROOT_PASSWORD", "password")
 MONGO_HOST = os.getenv("MONGO_HOST", "localhost")
 MONGO_PORT = os.getenv("MONGO_PORT", "27017")
 MONGO_DB = os.getenv("MONGO_DATABASE", "etl_database")

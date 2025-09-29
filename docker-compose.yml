@@ -6,26 +6,37 @@ services:
       mongo:
         condition: service_healthy
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - ./data:${DATA_DIR}
+      - ./logs:${LOG_DIR}
     env_file:
       - .env
     networks:
       - etl-network
     
   mongo:
-    command: mongod --quiet
+    command: 
+      - mongod
+      - --quiet
+      - --setParameter
+      - logLevel=0
+      - --logpath
+      - /app/logs/mongodb.log
     image: mongo:7.0
     restart: always
     ports:
       - "27017:27017"
     environment:
       - MONGO_INITDB_DATABASE=${MONGO_DATABASE}
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}    
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER}    
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - MONGO_INITDB_ANALYST_USERNAME=${MONGO_ANALYST_USER}    
+      - MONGO_INITDB_ANALYST_PASSWORD=${MONGO_ANALYST_PASSWORD}
+      - DATA_DIR=${DATA_DIR}
+      - LOG_DIR=${LOG_DIR}
     volumes:
-      - mongo_data:/data/db
-      - ./mongo-init:/docker-entrypoint-initdb.d
+      - mongo_data:${DATA_DIR}
+      - ./logs:${LOG_DIR}
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
     networks:
       - etl-network
     healthcheck:
@@ -42,8 +53,20 @@ services:
     environment:
       - ME_CONFIG_MONGODB_SERVER=mongo
       - ME_CONFIG_MONGODB_PORT=${MONGO_PORT}
-      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_USER}      
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_PASSWORD}  
+      # --- CONNEXION ADMIN (PAR DÉFAUT) ---
+      # Permet de voir toutes les bases de données et de tout gérer.
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_ROOT_USER}      
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_ROOT_PASSWORD}  
+      
+      # --- CONNEXION ANALYSTE (ALTERNATIVE) ---
+      # Pour tester les droits de lecture seule, commentez les 3 lignes ci-dessus
+      # et décommentez les 4 lignes ci-dessous.   
+      # - ME_CONFIG_MONGODB_ENABLE_ADMIN=false
+      # - ME_CONFIG_MONGODB_AUTH_DATABASE=${MONGO_DATABASE}
+      # - ME_CONFIG_MONGODB_AUTH_USERNAME=${MONGO_ANALYST_USER}
+      # - ME_CONFIG_MONGODB_AUTH_PASSWORD=${MONGO_ANALYST_PASSWORD}
+      
       - ME_CONFIG_BASICAUTH_USERNAME=${WEB_USERNAME}
       - ME_CONFIG_BASICAUTH_PASSWORD=${WEB_PASSWORD}
       - ME_CONFIG_OPTIONS_EDITORTHEME=default
