@@ -17,8 +17,6 @@ La mission initiale était de migrer un dataset de données médicales pour un c
 -   **Sécurité :** Mettre en place un système d'authentification avec des rôles utilisateurs distincts.
 -   **Maintenabilité :** Produire un code propre, orienté objet, et configurable via des variables d'environnement.
 
----
-
 ## 🏗️ Architecture de la Solution
 
 La solution est orchestrée par `docker-compose.yml` et s'articule autour de trois services principaux communiquant via un réseau privé `etl-network`.
@@ -29,11 +27,10 @@ La solution est orchestrée par `docker-compose.yml` et s'articule autour de tro
 -   **`mongo`**: Le service de base de données MongoDB. Il est configuré pour persister les données via un volume nommé (`mongo_data`) et pour centraliser ses logs. Au premier démarrage, il exécute un script d'initialisation pour créer les utilisateurs.
 - **`mongo-express`**: Une interface web d'administration pour visualiser et interroger facilement la base de données. Par défaut, elle est configurée pour se connecter avec l'utilisateur **administrateur** afin de faciliter le développement et le debug. Il est cependant possible de la reconfigurer pour utiliser le compte **analyste** en lecture seule (voir la section *Utilisation Avancée*).
 
----
 
 ## 💾 Modélisation des Données
 
-L'analyse initiale a révélé que le dataset source représentait des **hospitalisations** et non des patients uniques. Pour répondre à cette réalité, le pipeline a été conçu pour supporter deux stratégies de modélisation NoSQL, sélectionnables via la variable `DATA_MODELLING_MODE` dans le fichier `.env`.
+L'analyse initiale a révélé que le dataset source représentait des **hospitalisations** et non des patients uniques. Pour répondre à cette réalité, le pipeline a été conçu pour supporter deux stratégies de modélisation NoSQL, sélectionnables via la variable `DATA_MODELLING_MODE` dans le fichier `config/config.py`.
 
 ### 1. Modèle `embedding` (par défaut)
 
@@ -46,7 +43,6 @@ Ce modèle est optimisé pour les cas d'usage où les lectures sont fréquentes 
 Ce modèle normalise les données dans deux collections distinctes, ce qui est idéal pour les environnements avec de nombreuses mises à jour ou si les listes d'hospitalisations deviennent très grandes. La relation entre les deux collections est établie via un champ `patient_id` et peut être résolue à la lecture grâce à l'opération `$lookup`.
 
 ![Schéma du modèle de référence](./assets/reference_schema.png)
----
 
 ## 🚀 Installation et Lancement
 
@@ -84,8 +80,21 @@ docker-compose up -d --build
 docker-compose up --build
 ```
 Le pipeline s'exécute automatiquement au démarrage. La première exécution peut prendre un peu de temps pour télécharger les images et installer les dépendances.
+### 🐧 Note Spécifique pour les Utilisateurs Linux
 
----
+Docker sous Linux gère les permissions des volumes de manière stricte. Si vous rencontrez une erreur de permission au démarrage du service `mongo` (liée à l'impossibilité d'écrire dans les fichiers de log), cela signifie que le conteneur n'a pas les droits d'écriture sur le dossier `logs/` de votre machine.
+
+Pour résoudre ce problème, assurez-vous que ce dossier appartient à l'utilisateur `mongodb` (UID `999`) qui est utilisé à l'intérieur du conteneur.
+
+Exécutez la commande suivante à la racine de votre projet **avant** de lancer `docker-compose up` :
+
+```bash
+# Crée le dossier s'il n'existe pas
+mkdir -p logs
+
+# Donne la possession du dossier à l'UID approprié
+sudo chown -R 999:999 logs/
+```
 
 ## 🛠️ Utilisation et Monitoring
 
@@ -131,3 +140,5 @@ Par défaut, `mongo-express` se connecte avec les droits d'administrateur pour f
     docker-compose up -d --build
     ```
 L'interface web n'aura maintenant que des droits de lecture sur la base `medical_db`.
+
+---
