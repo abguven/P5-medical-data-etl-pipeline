@@ -1,13 +1,8 @@
 import pandas as pd
 from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure, InvalidURI, ServerSelectionTimeoutError
-from pathlib import Path
-import logging
-from typing import List, Dict, Any
-import os
-from datetime import datetime
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+import logging, os, sys, hashlib
 from config import config
-import hashlib
 from collections import defaultdict
 
 #Configuraiton des logs
@@ -23,19 +18,25 @@ logger = logging.getLogger(__name__)
 
 
 class ETLPipeline:
+    """
+    Orchestrates the entire ETL process for migrating medical data from a CSV file
+    to a structured MongoDB database. This class handles connection, data extraction,
+    transformation, and loading, based on a flexible configuration.
+    """
     def __init__(self, config):
+        """
+        Initializes the ETLPipeline with necessary configurations but does not
+        establish a database connection immediately (lazy connection).
+        
+        Args:
+            config: A configuration module containing all necessary parameters.
+        """
         # MongoDB credentials
-        mongo_username = os.getenv('MONGO_USER')
-        mongo_database = self._get_env_variable('MONGO_DATABASE')
-        mongo_uri = config.MONGO_URI
-
-        # Debug - Display credentials except password
-        logger.info(f"Connecting to MongoDB with user: {mongo_username}")
-        logger.info(f"Database: {mongo_database}")
-        logger.info(f"URL: {mongo_uri}")
-
-        self.mongo_client = self.connect_to_mongo(mongo_uri)
-        self.db = self.mongo_client[mongo_database]
+        self.mongo_username = os.getenv('MONGO_USER')
+        self.mongo_database = self._get_env_variable('MONGO_DATABASE')
+        self.mongo_uri = config.MONGO_URI
+        self.mongo_client = None
+        self.db = None
         
         self.column_mapping = {}
 
@@ -98,6 +99,12 @@ class ETLPipeline:
     
     @staticmethod
     def _generate_hash_id(values, len=20):
+        """
+        Generates a deterministic ID by hashing a list of values.
+        This ensures that the same entity (patient or hospitalization) will always
+        receive the same unique ID, which is crucial for the upsert/deduplication logic.
+        """
+        # Using a separator is important to avoid hash collisions
         concat = "|".join(str(v) for v in values)
         return hashlib.sha256(concat.encode()).hexdigest()[:len]
     
@@ -255,54 +262,53 @@ class ETLPipeline:
         return df
     
     def transform(self, df):
-        """
-        Cleans, normalizes, and structures the data according to the modeling strategy in the config.
-        """
-        logger.info(f"Transformation started.Initial shape of the dataframe: {df.shape}")   
-
-        # --- 1. CLEANING & FEATURE ENGINEERING 
-        # Explicit intention of dataframe update, to avoid copy warning
+        """Cleans, normalizes, and structures the data according to the config."""
+        logger.info(f"Transformation started.Initial shape: {df.shape}")   
+        
+        # Use a copy to avoid SettingWithCopyWarning in pandas
         df = df.copy()
         self.track_changes(df, "Initial state")
-
-        # Drop full duplicated rows
-        df = df.drop_duplicates()   
-        self.track_changes(df, "Remove full duplicates")
-
-        # Normalize and tokenize name column
+        
+        # --- 1. DATA NORMALIZATION & PRE-CLEANING ---               
         df["Name"] = df["Name"].str.title()
-        df["name_dict"] = df["Name"].apply(self._parse_name)
-        self.track_changes(df, "Parsing 'Name' column")
+        self.track_changes(df, "Normalized 'Name' column casing")
 
-        # Deduplication by checking the age field (anomaly noticed meanwhile my analyse on jupyter notebook)
-        # There are around 5 thousand records where every field is identical except "Age"
+        # --- 2. DEDUPLICATION ---
+        df = df.drop_duplicates()   
+        self.track_changes(df, "Removed fully duplicated rows")
+
+        # Deduplicate quasi-identical hospitalizations
+        # (same record with a different 'Age')
         df = df.drop_duplicates( subset = ( config.HOSPITALIZATION_KEYS - {"Age"}))
-        self.track_changes(df, "Deduplication by excluding Age")
+        self.track_changes(df, "Deduplicated hospitalizations ignoring 'Age'")
+
+        # --- 3. DATA ENRICHMENT & TYPE CONVERSION ---
+        df["name_dict"] = df["Name"].apply(self._parse_name)
+        self.track_changes(df, "Parsed 'Name' into structured object")            
 
         # Normalize billing amounts abs() + round()        
         df["is_billing_amount_imputed"] = df["Billing Amount"] < 0
         df["Billing Amount"] = df["Billing Amount"].abs().round(2)
-        self.track_changes(df, "Normalizing 'Billing Ammount' field")
+        self.track_changes(df, "Normalized 'Billing Amount'")
 
         # Normalize date fields
         df["Date of Admission"] = pd.to_datetime(df["Date of Admission"])
         df["Discharge Date"] = pd.to_datetime(df["Discharge Date"])
-        self.track_changes(df, "Normalizing date values")
+        self.track_changes(df, "Converted date columns to datetime objects")
 
-        # Generate unique id for patient
+        # --- 4. UNIQUE ID GENERATION ---
         df["Patient Id"] = df.apply(lambda row: self._generate_hash_id( [row[col] for col in config.PATIENT_KEYS] ), axis=1)        
-        self.track_changes(df, "Generating patient ids")
+        self.track_changes(df, "Generated unique patient IDs")
 
-        # --- 2. NORMALIZE COLUMN NAMES ---
-        # Normalize column names
+        # --- 5. COLUMN NAME NORMALIZATION ---
         df = self.normalize_column_names(df)
-        self.track_changes(df, "Normalizing column names")
+        self.track_changes(df, "Normalized all column names")
 
-        # --- 3. BUILD FINAL DOCUMENTS ---
+        # --- 6. FINAL DOCUMENT STRUCTURING ---
         documents_by_collection = self.build_documents(df, mode=config.DATA_MODELLING_MODE)
         
         logger.info(f"Transformation ended. Produced documents for collections: {list(documents_by_collection.keys())}")
-        logger.info(f"Actual shape of the dataframe: {df.shape}")   
+        logger.info(f"Final shape: {df.shape}")   
         return documents_by_collection
     
     def load(self, collections_data ):
@@ -346,16 +352,35 @@ class ETLPipeline:
             # Log the success for this specific collection
             inserted_for_this_collection = len(result.inserted_ids)
             total_inserted_count += inserted_for_this_collection
-            logger.info(f"  ✅ Successfully inserted {inserted_for_this_collection} documents into '{collection_name}'.")
+            logger.info(f"✅ Successfully inserted {inserted_for_this_collection} documents into '{collection_name}'.")
 
         logger.info(f"Loading process finished. Total documents inserted: {total_inserted_count}")
         return total_inserted_count
       
 
     def run_etl(self, csv_path):
+        """
+        Executes the full ETL pipeline: connect, extract, transform, load, and index.
+        This is the main entry point for the process. It includes robust error handling
+        to ensure graceful termination.
+        
+        Args:
+            csv_path: The Path object pointing to the source CSV file.
+        """
         logger.info("====================== PIPELINE START ======================")
         total_inserted_count = 0
         try:
+            
+            # Step 0: DB Connection
+            # Debug - Display credentials except password
+            logger.info(f"Connecting to MongoDB with user: {self.mongo_username}")
+            logger.info(f"Database: {self.mongo_database}")
+            logger.info(f"URL: {self.mongo_uri}")            
+
+            self.mongo_client = self.connect_to_mongo(self.mongo_uri)
+            self.db = self.mongo_client[self.mongo_database]
+            logger.info(f"✅ Successfully connected to database '{self.mongo_database}'.")
+
              # Step 1: Extract data from the source file
             source_df = self.extract(csv_path)
 
@@ -368,29 +393,38 @@ class ETLPipeline:
             # Step 4 : Ensure indexes
             self.ensure_indexes()
 
-        except FileNotFoundError as e:
-            logger.error(f"❌ CRITICAL: Source file not found. Aborting pipeline. Error: {e}")
-            # No 'raise', as this is a controlled exit.
+        except FileNotFoundError:
+            logger.critical(f"❌ CRITICAL: Source file not found at {csv_path}. Aborting.")
+            raise # main() should handle the exit value
+        except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+            logger.critical(f"❌ CRITICAL: Could not connect to MongoDB at {self.mongo_uri}. Aborting. Error: {e}")        
+            raise
         except ValueError as e:
-            logger.error(f"❌ CRITICAL: A data validation error occurred. Aborting pipeline. Error: {e}")
+            logger.critical(f"❌ CRITICAL: A data validation error occurred. Aborting pipeline. Error: {e}")
+            raise
         except Exception as e:
             # Catch any other unexpected errors during the process
-            logger.error(f"❌ CRITICAL: An unexpected error occurred during pipeline execution: {e}", exc_info=True)
+            logger.critical(f"❌ CRITICAL: An unexpected error occurred during pipeline execution: {e}", exc_info=True)
+            raise
         finally:
-            self.mongo_client.close()
-            logger.info("MongoDB connection closed.")
+            if self.mongo_client:
+                self.mongo_client.close()
+                logger.info("MongoDB connection closed.")
 
         logger.info("======================= PIPELINE END =======================")
         logger.info(f"{total_inserted_count} total documents processed.")
 
 def main():
-
-    if os.path.exists(config.SOURCE_FILE_PATH):
+    try:
         etl = ETLPipeline(config=config)
         etl.run_etl(config.SOURCE_FILE_PATH)
-    else:
-        logger.error(f"❌ Source file not found {config.SOURCE_FILE_PATH}.")
-        exit(1)
+        logger.info("✅ ETL Pipeline completed successfully.")
+    except Exception as e:
+        # We already logged error case in run_etl,
+        # we just ensure that the etl exits with the right code, this is essential for docker service.
+        logger.error("ETL Pipeline failed. See critical errors above.")
+        sys.exit(1)
+
 
 
 if __name__ == "__main__":
