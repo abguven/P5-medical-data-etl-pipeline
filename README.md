@@ -163,3 +163,9 @@ Par défaut, `mongo-express` se connecte avec les droits d'administrateur pour f
 L'interface web n'aura maintenant que des droits de lecture sur la base `medical_db`.
 
 ---
+
+## 📦 Livrables
+
+En plus du code source et de la documentation, ce dépôt contient la présentation complète du projet qui résume la démarche, les décisions d'architecture et les résultats.
+
+- 📄 **[Présentation du Projet (PDF)](./docs/etl_medical_pipeline_presentation.pdf)** : Cliquez pour consulter les slides qui ont accompagné la restitution de ce projet.
