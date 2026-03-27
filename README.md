@@ -6,6 +6,7 @@
 [![Mongo Express](https://img.shields.io/badge/Mongo_Express-1.0.0-3FA037?style=flat&logo=mongodb&logoColor=white&labelColor=1a1a1a)](https://github.com/mongo-express/mongo-express)
 [![Pandas](https://img.shields.io/badge/Pandas-2.x-150458?style=flat&logo=pandas&logoColor=white&labelColor=1a1a1a)](https://pandas.pydata.org/)
 [![Poetry](https://img.shields.io/badge/Poetry-managed-60A5FA?style=flat&logo=poetry&logoColor=white&labelColor=1a1a1a)](https://python-poetry.org/)
+[![Présentation](https://img.shields.io/badge/Présentation-PDF-E63946?style=flat&logo=adobeacrobatreader&logoColor=white&labelColor=1a1a1a)](./docs/etl_medical_pipeline_presentation.pdf)
 
 Ce projet met en place un pipeline ETL (Extract, Transform, Load) complet et de calibre professionnel pour migrer un jeu de données de patients depuis un fichier CSV vers une base de données NoSQL MongoDB. La solution est entièrement conteneurisée avec Docker, configurable, et conçue pour être robuste et maintenable.
 
