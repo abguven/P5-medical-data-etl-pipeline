@@ -53,12 +53,9 @@ COLLECTION_HOSPITALIZATIONS = "hospitalizations"
 
 TARGET_COLLECTIONS = [COLLECTION_PATIENTS, COLLECTION_HOSPITALIZATIONS]
 
-# Definition of desired indexes for each collection
-# This structure will allow us to create indexes dynamically
+# Index definitions per collection — each entry is a field name to index
 INDEXES = {
     COLLECTION_PATIENTS: [
-        # Key: the field to index (in dot notation for sub-documents)
-        # Value (optional): the index type (empty for default)
         "name.last",
         "blood_type"
     ],
@@ -66,8 +63,7 @@ INDEXES = {
         "patient_id"
     ]
 }
-# Specific indexes for 'embedding' mode
-# We add them only in this mode
+# Additional indexes applied only in 'embedding' mode
 EMBEDDING_INDEXES = {
     COLLECTION_PATIENTS: [
         f"{COLLECTION_HOSPITALIZATIONS}.medical_condition"

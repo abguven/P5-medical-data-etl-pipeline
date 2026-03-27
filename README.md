@@ -1,7 +1,11 @@
 # Pipeline ETL pour Données Médicales vers MongoDB
-<img src="https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11"> <img src="https://img.shields.io/badge/MongoDB-7.0-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB 7.0"> <img src="https://img.shields.io/badge/Docker-24.0-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"> <img src="https://img.shields.io/badge/Mongo_Express-1.0.0-86d77e.svg?style=for-the-badge" alt="Mongo Express">
 
-**Réf:** OC-DE-P5
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white&labelColor=1a1a1a)](https://www.python.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?style=flat&logo=mongodb&logoColor=white&labelColor=1a1a1a)](https://www.mongodb.com/)
+[![Docker](https://img.shields.io/badge/Docker-compose-2496ED?style=flat&logo=docker&logoColor=white&labelColor=1a1a1a)](https://www.docker.com/)
+[![Mongo Express](https://img.shields.io/badge/Mongo_Express-1.0.0-3FA037?style=flat&logo=mongodb&logoColor=white&labelColor=1a1a1a)](https://github.com/mongo-express/mongo-express)
+[![Pandas](https://img.shields.io/badge/Pandas-2.x-150458?style=flat&logo=pandas&logoColor=white&labelColor=1a1a1a)](https://pandas.pydata.org/)
+[![Poetry](https://img.shields.io/badge/Poetry-managed-60A5FA?style=flat&logo=poetry&logoColor=white&labelColor=1a1a1a)](https://python-poetry.org/)
 
 Ce projet met en place un pipeline ETL (Extract, Transform, Load) complet et de calibre professionnel pour migrer un jeu de données de patients depuis un fichier CSV vers une base de données NoSQL MongoDB. La solution est entièrement conteneurisée avec Docker, configurable, et conçue pour être robuste et maintenable.
 
@@ -90,10 +94,10 @@ Cette commande va construire l'image Python, démarrer la base de données, exé
 
 ```bash
 # Option 1: Lancer tous les services en arrière-plan (detached mode)
-docker-compose up -d --build
+docker compose up -d --build
 
 # Option 2: Lancer tous les services au premier plan (les logs s'affichent directement dans la console)
-docker-compose up --build
+docker compose up --build
 ```
 Le pipeline s'exécute automatiquement au démarrage. La première exécution peut prendre un peu de temps pour télécharger les images et installer les dépendances.
 ### 🐧 Note Spécifique pour les Utilisateurs Linux
@@ -102,7 +106,7 @@ Docker sous Linux gère les permissions des volumes de manière stricte. Si vous
 
 Pour résoudre ce problème, assurez-vous que ce dossier appartient à l'utilisateur `mongodb` (UID `999`) qui est utilisé à l'intérieur du conteneur.
 
-Exécutez la commande suivante à la racine de votre projet **avant** de lancer `docker-compose up` :
+Exécutez la commande suivante à la racine de votre projet **avant** de lancer `docker compose up` :
 
 ```bash
 # Crée le dossier s'il n'existe pas
@@ -121,26 +125,26 @@ sudo chown -R 999:999 logs/
 ### Monitoring et Debug
 ```bash
 # Voir les logs en temps réel (-f) de tous les services
-docker-compose logs -f
+docker compose logs -f
 
 # Voir les logs en temps réel (-f) d'un service spécifique (ex: mongo-express)
-docker-compose logs -f mongo-express
+docker compose logs -f mongo-express
 
 # Voir les logs spécifiques du script ETL
-docker-compose logs etl-app
+docker compose logs etl-app
 
 # Entrer dans le conteneur ETL pour un debug avancé
-docker-compose exec etl-app bash
+docker compose exec etl-app bash
 ```
 
 ### Arrêter les Services
 Pour arrêter tous les conteneurs :
 ```bash
-docker-compose down
+docker compose down
 ```
 Pour un nettoyage complet (incluant la suppression du volume de données MongoDB) :
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ### ⚙️ Utilisation Avancée : Tester la Connexion Analyste
@@ -153,7 +157,7 @@ Par défaut, `mongo-express` se connecte avec les droits d'administrateur pour f
 4.  **Décommentez** les lignes de la `CONNEXION ANALYSTE`.
 5.  Relancez les services pour appliquer les changements :
     ```bash
-    docker-compose up -d --build
+    docker compose up -d --build
     ```
 L'interface web n'aura maintenant que des droits de lecture sur la base `medical_db`.
 

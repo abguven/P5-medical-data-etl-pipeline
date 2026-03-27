@@ -5,7 +5,7 @@ import logging, os, sys, hashlib
 from config import config
 from collections import defaultdict
 
-#Configuraiton des logs
+# Log configuration
 logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -47,7 +47,7 @@ class ETLPipeline:
     def connect_to_mongo(self, uri):
         client = MongoClient(uri)
         client.admin.command('ping')
-        logger.info("✅ Connection to Mongo successfull !")
+        logger.info("✅ Connection to MongoDB successful.")
         return client
 
     # Provides an option to fail the process when an important variable is missing.
@@ -55,11 +55,11 @@ class ETLPipeline:
     def _get_env_variable(key, default=None, fail=True):
         value = os.getenv(key, default)
         if value is None and fail:
-            raise ValueError(f"Environement variable '{key}' is missing, stopping the process... ")
+            raise ValueError(f"Environment variable '{key}' is missing, stopping the process.")
         return value
 
     def track_changes(self, df, description=""):
-        """Observe les changements SANS modifier le DataFrame"""
+        """Tracks DataFrame shape and column changes without modifying it."""
         current_rows = df.shape[0]
         current_cols = set(df.columns)
         
@@ -74,7 +74,7 @@ class ETLPipeline:
             if cols_removed:
                 logger.info(f"   ➖ Removed: {list(cols_removed)}")
         
-        # Sauvegarde pour le prochain check
+        # Save state for the next comparison
         self._last_rows = current_rows
         self._last_cols = current_cols
 
@@ -83,7 +83,7 @@ class ETLPipeline:
         parts = full_name.split()
         name_dict = {"full": full_name}
                
-        #Extract title and suffix
+        # Extract title and suffix
         if parts and parts[0] in config.NAME_PREFIXES:
             name_dict["title"] = parts.pop(0)
         if parts and parts[-1] in config.NAME_SUFFIXES:
@@ -128,7 +128,7 @@ class ETLPipeline:
             else:
                 logger.info(f"   '{old}' = '{new}'")
     
-        #  Colission detection !!!
+        # Collision detection
         if len(final_columns) != len(set(final_columns)):        
             duplicates = [col for col in final_columns if final_columns.count(col) > 1]
             logger.error(f"❌ COLLISION DETECTED in columns: {set(duplicates)}")
@@ -258,7 +258,7 @@ class ETLPipeline:
         logger.info(f"Extracting data from : {csv_path}")
         df = pd.read_csv(csv_path)
         mem_bytes = df.memory_usage(deep=True).sum()
-        logger.info(f"Data extracted: {len(df)} lines, {len(df.columns)} coloumns.Memory usage: {mem_bytes / 1_048_576: .2f} MB")
+        logger.info(f"Data extracted: {len(df)} lines, {len(df.columns)} columns. Memory usage: {mem_bytes / 1_048_576: .2f} MB")
         return df
     
     def transform(self, df):
